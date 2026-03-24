@@ -1,0 +1,113 @@
+<mujoco model="antt_t1">
+  <compiler angle="radian" />
+  <asset>
+    <mesh name="t1_base_link" file="meshes/base_link.STL" />
+    <mesh name="t1_Link1" file="meshes/Link1.STL" />
+    <mesh name="t1_Link2" file="meshes/Link2.STL" />
+    <mesh name="t1_Link3" file="meshes/Link3.STL" />
+    <mesh name="t1_Link4" file="meshes/Link4.STL" />
+    <mesh name="t1_Link5" file="meshes/Link5.STL" />
+    <mesh name="t1_Link6" file="meshes/Link6.STL" />
+    <mesh name="t1_Link7" file="meshes/Link7.STL" />
+  </asset>
+
+  <worldbody>
+    <body name="t1_root" pos="0 2.5 0" quat="0.707107 0 0 0.707107">
+      <geom size="0.075 0.04 0.03" pos="0 0 1.2" type="box" />
+      <geom size="0.04 0.04 0.6" pos="0 0 0.6" type="box" />
+      <geom pos="0.075 0 1.2" quat="0 0.707107 0 0.707107" type="mesh" mesh="t1_base_link" />
+      <geom pos="-0.075 0 1.2" quat="0.707107 0 -0.707107 0" type="mesh" mesh="t1_base_link" />
+
+      <body name="t1_left_link1" pos="0.213 0 1.2" quat="0 0.707107 0 0.707107">
+        <inertial pos="-0.00077 -0.00006 -0.00686" mass="0.77" diaginertia="0.0006669 0.00054501 0.00051509" />
+        <joint name="t1_left_joint1" pos="0 0 0" axis="0 0 1" range="-2.7 2.7" armature="0.010294488" damping="0.05" frictionloss="0.2" />
+        <geom type="mesh" mesh="t1_Link1" />
+        <body name="t1_left_link2" quat="0.20899608 0.20899519 0.6755138 -0.67551666">
+          <inertial pos="-0.00011 -0.06072 0.00148" quat="0.707107 0.707107 0 0" mass="0.49" diaginertia="0.00053808 0.00040266 0.00029435" />
+          <joint name="t1_left_joint2" pos="0 0 0" axis="0 0 1" range="-1.74 1.74" armature="0.023589557" damping="0.05" frictionloss="0.2" />
+          <geom type="mesh" mesh="t1_Link2" />
+          <body name="t1_left_link3" pos="0 -0.31 0" quat="-0.00000259734 0.00000259735 -0.707108 0.707105">
+            <inertial pos="0.00014 0.00211 -0.04853" mass="0.67" diaginertia="0.00342528 0.0033924 0.00026169" />
+            <joint name="t1_left_joint3" pos="0 0 0" axis="0 0 1" range="-2.75 2.75" armature="0.16014287" damping="0.05" frictionloss="0.2" />
+            <geom type="mesh" mesh="t1_Link3" />
+            <body name="t1_left_link4" quat="-0.00000259734 0.00000259735 -0.707108 0.707105">
+              <inertial pos="-0.00013 -0.05482 0.00132" quat="0.707107 0.707107 0 0" mass="0.41" diaginertia="0.00031331 0.0002393 0.00013204" />
+              <joint name="t1_left_joint4" pos="0 0 0" axis="0 0 1" range="-1.01 2.14" armature="0.04430987" damping="0.05" frictionloss="0.2" />
+              <geom type="mesh" mesh="t1_Link4" />
+              <body name="t1_left_link5" pos="0 -0.27001 0" quat="0.499998 0.5 -0.5 0.500002">
+                <inertial pos="0.00303 0.00617 -0.11778" mass="0.56" diaginertia="0.0008249 0.00078548 0.00021015" />
+                <joint name="t1_left_joint5" pos="0 0 0" axis="0 0 1" range="-2.75 2.75" armature="0.048632562" damping="0.05" frictionloss="0.2" />
+                <geom type="mesh" mesh="t1_Link5" />
+                <body name="t1_left_link6" quat="0.499998 0.5 -0.5 0.500002">
+                  <inertial pos="0.00014 -0.0027 -0.00025" quat="0.707107 0.707107 0 0" mass="0.31" diaginertia="0.00008181 0.00007906 0.00007176" />
+                  <joint name="t1_left_joint6" pos="0 0 0" axis="0 0 1" range="-0.73 0.95" armature="0.01" damping="0.05" frictionloss="0.1" />
+                  <geom type="mesh" mesh="t1_Link6" />
+                  <body name="t1_left_link7" pos="0 -0.0235 0" quat="0.707105 0.707108 0 0">
+                    <inertial pos="-0.00014 -0.0001 -0.00275" quat="0.5 0.5 -0.5 0.5" mass="0.000001" diaginertia="0.0000002 0.00000011 0.00000011" />
+                    <joint name="t1_left_joint7" pos="0 0 0" axis="0 0 1" range="-1.57 1.57" armature="0.01" damping="0.05" frictionloss="0.1" />
+                    <geom type="mesh" mesh="t1_Link7" />
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <body name="t1_right_link1" pos="-0.213 0 1.2" quat="0.707107 0 -0.707107 0">
+        <inertial pos="-0.00077 -0.00006 -0.00686" mass="0.77" diaginertia="0.0006669 0.00054501 0.00051509" />
+        <joint name="t1_right_joint1" pos="0 0 0" axis="0 0 1" range="-2.7 2.7" armature="0.010294488" damping="0.05" frictionloss="0.2" />
+        <geom type="mesh" mesh="t1_Link1" />
+        <body name="t1_right_link2" quat="0.20899608 0.20899519 0.6755138 -0.67551666">
+          <inertial pos="-0.00011 -0.06072 0.00148" quat="0.707107 0.707107 0 0" mass="0.49" diaginertia="0.00053808 0.00040266 0.00029435" />
+          <joint name="t1_right_joint2" pos="0 0 0" axis="0 0 1" range="-1.74 1.74" armature="0.023589557" damping="0.05" frictionloss="0.2" />
+          <geom type="mesh" mesh="t1_Link2" />
+          <body name="t1_right_link3" pos="0 -0.31 0" quat="-0.00000259734 0.00000259735 -0.707108 0.707105">
+            <inertial pos="0.00014 0.00211 -0.04853" mass="0.67" diaginertia="0.00342528 0.0033924 0.00026169" />
+            <joint name="t1_right_joint3" pos="0 0 0" axis="0 0 1" range="-2.75 2.75" armature="0.16014287" damping="0.05" frictionloss="0.2" />
+            <geom type="mesh" mesh="t1_Link3" />
+            <body name="t1_right_link4" quat="-0.00000259734 0.00000259735 -0.707108 0.707105">
+              <inertial pos="-0.00013 -0.05482 0.00132" quat="0.707107 0.707107 0 0" mass="0.41" diaginertia="0.00031331 0.0002393 0.00013204" />
+              <joint name="t1_right_joint4" pos="0 0 0" axis="0 0 1" range="-1.01 2.14" armature="0.04430987" damping="0.05" frictionloss="0.2" />
+              <geom type="mesh" mesh="t1_Link4" />
+              <body name="t1_right_link5" pos="0 -0.27001 0" quat="0.499998 0.5 -0.5 0.500002">
+                <inertial pos="0.00303 0.00617 -0.11778" mass="0.56" diaginertia="0.0008249 0.00078548 0.00021015" />
+                <joint name="t1_right_joint5" pos="0 0 0" axis="0 0 1" range="-2.75 2.75" armature="0.048632562" damping="0.05" frictionloss="0.2" />
+                <geom type="mesh" mesh="t1_Link5" />
+                <body name="t1_right_link6" quat="0.499998 0.5 -0.5 0.500002">
+                  <inertial pos="0.00014 -0.0027 -0.00025" quat="0.707107 0.707107 0 0" mass="0.31" diaginertia="0.00008181 0.00007906 0.00007176" />
+                  <joint name="t1_right_joint6" pos="0 0 0" axis="0 0 1" range="-0.73 0.95" armature="0.01" damping="0.05" frictionloss="0.1" />
+                  <geom type="mesh" mesh="t1_Link6" />
+                  <body name="t1_right_link7" pos="0 -0.0235 0" quat="0.707105 0.707108 0 0">
+                    <inertial pos="-0.00014 -0.0001 -0.00275" quat="0.5 0.5 -0.5 0.5" mass="0.000001" diaginertia="0.0000002 0.00000011 0.00000011" />
+                    <joint name="t1_right_joint7" pos="0 0 0" axis="0 0 1" range="-1.57 1.57" armature="0.01" damping="0.05" frictionloss="0.1" />
+                    <geom type="mesh" mesh="t1_Link7" />
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="t1_left_joint1" joint="t1_left_joint1" ctrlrange="-60 60" />
+    <motor name="t1_left_joint2" joint="t1_left_joint2" ctrlrange="-60 60" />
+    <motor name="t1_left_joint3" joint="t1_left_joint3" ctrlrange="-100 100" />
+    <motor name="t1_left_joint4" joint="t1_left_joint4" ctrlrange="-60 60" />
+    <motor name="t1_left_joint5" joint="t1_left_joint5" ctrlrange="-50 50" />
+    <motor name="t1_left_joint6" joint="t1_left_joint6" ctrlrange="-20 20" />
+    <motor name="t1_left_joint7" joint="t1_left_joint7" ctrlrange="-15 15" />
+
+    <motor name="t1_right_joint1" joint="t1_right_joint1" ctrlrange="-60 60" />
+    <motor name="t1_right_joint2" joint="t1_right_joint2" ctrlrange="-60 60" />
+    <motor name="t1_right_joint3" joint="t1_right_joint3" ctrlrange="-100 100" />
+    <motor name="t1_right_joint4" joint="t1_right_joint4" ctrlrange="-60 60" />
+    <motor name="t1_right_joint5" joint="t1_right_joint5" ctrlrange="-50 50" />
+    <motor name="t1_right_joint6" joint="t1_right_joint6" ctrlrange="-20 20" />
+    <motor name="t1_right_joint7" joint="t1_right_joint7" ctrlrange="-15 15" />
+  </actuator>
+
+</mujoco>
