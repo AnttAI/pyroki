@@ -148,20 +148,21 @@ def get_humanoid_retarget_indices() -> tuple[jnp.ndarray, jnp.ndarray]:
     smpl_joint_retarget_indices_to_g1 = []
     g1_joint_retarget_indices = []
 
+    # NOTE: SMPL left/right are swapped in the data, so we mirror the mapping
     for smpl_name, g1_name in [
         ("pelvis", "pelvis_contour_link"),
-        ("left_hip", "left_hip_pitch_link"),
-        ("right_hip", "right_hip_pitch_link"),
-        ("left_knee", "left_knee_link"),
-        ("right_knee", "right_knee_link"),
-        ("left_ankle", "left_ankle_roll_link"),
-        ("right_ankle", "right_ankle_roll_link"),
-        ("left_shoulder", "left_shoulder_roll_link"),
-        ("right_shoulder", "right_shoulder_roll_link"),
-        ("left_elbow", "left_elbow_link"),
-        ("right_elbow", "right_elbow_link"),
-        ("left_wrist", "left_wrist_roll_link"),
-        ("right_wrist", "right_wrist_roll_link"),
+        ("right_hip", "left_hip_pitch_link"),  # Swapped
+        ("left_hip", "right_hip_pitch_link"),  # Swapped
+        ("right_knee", "left_knee_link"),  # Swapped
+        ("left_knee", "right_knee_link"),  # Swapped
+        ("right_ankle", "left_ankle_roll_link"),  # Swapped
+        ("left_ankle", "right_ankle_roll_link"),  # Swapped
+        ("right_shoulder", "left_shoulder_roll_link"),  # Swapped
+        ("left_shoulder", "right_shoulder_roll_link"),  # Swapped
+        ("right_elbow", "left_elbow_link"),  # Swapped
+        ("left_elbow", "right_elbow_link"),  # Swapped
+        ("right_wrist", "left_wrist_roll_link"),  # Swapped
+        ("left_wrist", "right_wrist_roll_link"),  # Swapped
     ]:
         smpl_joint_retarget_indices_to_g1.append(SMPL_JOINT_NAMES.index(smpl_name))
         g1_joint_retarget_indices.append(G1_LINK_NAMES.index(g1_name))

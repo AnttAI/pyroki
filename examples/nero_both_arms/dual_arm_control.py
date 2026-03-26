@@ -43,6 +43,13 @@ from scipy.spatial.transform import Rotation as R
 
 import pyroki_snippets as pks
 
+# Import custom bimanual IK solver with symmetric rest pose support
+import sys
+bimanual_ik_path = str(Path(__file__).parent)
+if bimanual_ik_path not in sys.path:
+    sys.path.insert(0, bimanual_ik_path)
+from bimanual_ik_symmetric import solve_ik_bimanual_symmetric
+
 # ROS2 imports (optional)
 try:
     import rclpy
@@ -218,9 +225,11 @@ def main():
 
     urdf = yourdfpy.URDF.load(urdf_path)
 
-    # Define end effector links for both arms
-    left_end_effector = "left_link8"
-    right_end_effector = "right_link8"
+    # Define end effector links for both arms (gripper_base = base of gripper)
+    # URDF left_gripper_base → visual left arm
+    # URDF right_gripper_base → visual right arm
+    left_end_effector = "left_gripper_base"
+    right_end_effector = "right_gripper_base"
 
     # Create robot
     print("Creating robot model...")
@@ -250,10 +259,10 @@ def main():
     print(f"Visual RIGHT arm (URDF left) joints (7-DOF): {urdf_left_joint_names}")
     print(f"Visual RIGHT arm joint indices: {visual_right_joint_indices}")
 
-    # IK solution structure: [urdf_left_joint1-7, urdf_right_joint1-7] (14 values)
-    # Map to visual positions
-    visual_right_ik_indices = list(range(0, 7))  # URDF left → visual right
-    visual_left_ik_indices = list(range(7, 14))  # URDF right → visual left
+    # IK solution structure: [urdf_left_joint1-7, left_gripper1-2, urdf_right_joint1-7, right_gripper1-2] (18 values)
+    # Map to visual positions (skip gripper joints)
+    visual_right_ik_indices = list(range(0, 7))  # URDF left arm → visual right
+    visual_left_ik_indices = list(range(9, 16))  # URDF right arm → visual left (skip 2 left gripper joints at 7-8)
 
     # =====================================================
     # DEFINE TARGET POINTS FOR BOTH ARMS (MIRRORED)
@@ -261,23 +270,26 @@ def main():
 
     print("\n=== Target Point Configuration (Bimanual - Same Orientation) ===")
 
-    # SHARED ORIENTATION - Both arms use the SAME orientation regardless of position
-    # This ensures both arms approach their targets in the same way
-    shared_orientation = np.array([1.0, 0.0, 0.0, 0.0])  # Identity quaternion (w, x, y, z)
+    # SHARED ORIENTATION - Gripper pointing inward/downward to grasp objects
+    # Rotate gripper to point toward the ball for grasping
+    # Rotate -90 degrees around X axis to point gripper downward/forward for grasping
+    rot = R.from_euler('x', -90, degrees=True).as_quat()  # [x, y, z, w] format
+    shared_orientation = np.array([rot[3], rot[0], rot[1], rot[2]])  # Convert to [w, x, y, z]
 
-    # LEFT ARM TARGET - independent position
-    left_target_x = 0.3
-    left_target_y = 0.3
-    left_target_z = 1.0
+    # LEFT ARM TARGET - define base target (at the ball position)
+    left_target_x = 0.35  # X position of target ball
+    left_target_y = 0.43  # Y - Forward distance to target ball
+    left_target_z = 1.0  # Z - Height of target ball
     left_target_position = np.array([left_target_x, left_target_y, left_target_z])
-    left_target_orientation = shared_orientation  # Same orientation as right arm
+    left_target_orientation = shared_orientation
 
-    # RIGHT ARM TARGET - independent position (can be anywhere)
-    right_target_x = -0.3
-    right_target_y = 0.3
-    right_target_z = 1.0
+    # RIGHT ARM TARGET - automatically mirror left arm for symmetry
+    # Logic: Mirror X (negate), keep Y and Z the same for symmetric bimanual poses
+    right_target_x = -left_target_x  # Mirror X coordinate
+    right_target_y = left_target_y   # Same Y (forward distance)
+    right_target_z = left_target_z   # Same Z (height) - CRITICAL for symmetry!
     right_target_position = np.array([right_target_x, right_target_y, right_target_z])
-    right_target_orientation = shared_orientation  # Same orientation as left arm
+    right_target_orientation = shared_orientation
 
     print(f"\nLEFT ARM target position (x, y, z): {left_target_position}")
     print(f"RIGHT ARM target position (x, y, z): {right_target_position}")
@@ -289,15 +301,33 @@ def main():
 
     print("\nSolving bimanual inverse kinematics (same orientation)...")
 
-    # Use bimanual IK solver for simultaneous control with SAME orientation
-    dual_target_config = pks.solve_ik_with_multiple_targets(
+    # Define a symmetric rest pose for both arms to encourage similar configurations
+    # This helps both arms adopt similar joint angles when reaching similar targets
+    # Format: All 18 actuated joints
+    # Actuated joints: left_joint1-7 (7 revolute), left_gripper_joint1-2 (2 prismatic),
+    #                  right_joint1-7 (7 revolute), right_gripper_joint1-2 (2 prismatic)
+    # Note: left_joint8 and right_joint8 are FIXED joints, not included
+    # Using a neutral "T-pose" style configuration
+    symmetric_rest_pose = np.array([
+        0.0, -0.5, 0.0, 1.2, 0.0, 0.8, 0.0,  # left_joint1-7 (urdf left, visual right)
+        0.0, 0.0,                             # left_gripper_joint1-2
+        0.0, -0.5, 0.0, 1.2, 0.0, 0.8, 0.0,  # right_joint1-7 (urdf right, visual left)
+        0.0, 0.0,                             # right_gripper_joint1-2
+    ])
+
+    # Use custom bimanual IK solver with symmetric rest pose
+    # This solver will reach both targets while biasing toward symmetric configurations
+    # NOTE: Target order must match URDF order (left first, then right)
+    dual_target_config = solve_ik_bimanual_symmetric(
         robot=robot,
         target_link_names=[left_end_effector, right_end_effector],
+        target_wxyzs=np.array([left_target_orientation, right_target_orientation]),
         target_positions=np.array([left_target_position, right_target_position]),
-        target_wxyzs=np.array([shared_orientation, shared_orientation]),
+        rest_pose=symmetric_rest_pose,
+        rest_weight=5.0,  # Bias toward symmetric rest pose
     )
 
-    print(f"\n✓ DUAL ARM IK Solution (full): {dual_target_config}")
+    print(f"\n✓ DUAL ARM IK Solution (with symmetric bias): {dual_target_config}")
 
     # Extract only the arm joints (7-DOF) from the IK solution
     # IK solution contains only revolute joints: [urdf_left_joint1-7, urdf_right_joint1-7]
@@ -347,18 +377,24 @@ def main():
     if ROS_AVAILABLE and ros_node is not None:
         time.sleep(0.5)  # Wait for joint states
         left_start_config = ros_node.get_left_current_position()
+        right_start_config = ros_node.get_right_current_position()
+
         if left_start_config is not None:
             print(f"LEFT ARM: Starting from current robot position")
         else:
             left_start_config = np.zeros(7)
             print(f"LEFT ARM: No feedback yet, starting from home position")
+
+        if right_start_config is not None:
+            print(f"RIGHT ARM: Starting from current robot position")
+        else:
+            right_start_config = np.zeros(7)
+            print(f"RIGHT ARM: No feedback yet, starting from home position")
     else:
         left_start_config = np.zeros(7)
+        right_start_config = np.zeros(7)
         print(f"LEFT ARM: Starting from home position")
-
-    # Right arm always starts from zero (simulation only)
-    right_start_config = np.zeros(7)
-    print(f"RIGHT ARM: Starting from home position")
+        print(f"RIGHT ARM: Starting from home position")
 
     # Generate trajectories using minimum-jerk (quintic polynomial)
     def generate_trajectory(start_config, end_config, steps):
@@ -568,13 +604,17 @@ def main():
     current_visual_left_trajectory = visual_left_trajectory.copy()
     current_visual_right_trajectory = visual_right_trajectory.copy()
 
+    # Track current arm positions for incremental movements
+    current_left_position = left_start_config.copy()
+    current_right_position = right_start_config.copy()
+
     # =====================================================
     # BUTTON CALLBACKS
     # =====================================================
 
     @regenerate_left_button.on_click
     def _(_):
-        nonlocal current_visual_left_trajectory, current_visual_right_trajectory
+        nonlocal current_visual_left_trajectory, current_visual_right_trajectory, current_left_position, current_right_position
 
         # Get new left target
         new_left_target = np.array([
@@ -590,36 +630,62 @@ def main():
             right_target_z_slider.value,
         ])
 
-        status_text.value = "Solving BIMANUAL IK (same orientation)..."
-        print(f"\nRegenerating trajectories with same orientation:")
+        status_text.value = "Solving BIMANUAL IK (symmetric)..."
+        print(f"\nRegenerating trajectories with symmetric configuration:")
         print(f"  LEFT:  {new_left_target}")
         print(f"  RIGHT: {new_right_target}")
 
         try:
-            # Solve bimanual IK simultaneously - both arms use SAME orientation
-            new_joint_config_full = pks.solve_ik_with_multiple_targets(
+            # Solve bimanual IK with symmetric bias
+            new_joint_config_full = solve_ik_bimanual_symmetric(
                 robot=robot,
                 target_link_names=[left_end_effector, right_end_effector],
-                target_positions=np.array([new_left_target, new_right_target]),
                 target_wxyzs=np.array([shared_orientation, shared_orientation]),
+                target_positions=np.array([new_left_target, new_right_target]),
+                rest_pose=symmetric_rest_pose,
+                rest_weight=5.0,
             )
 
+            print(f"  Using symmetric bimanual IK solver")
+
             # Extract arm joints (7-DOF each) from IK solution
-            # IK solution: [urdf_left(0-6), urdf_right(7-13)] → [visual_right, visual_left]
-            urdf_left_config = np.array([new_joint_config_full[i] for i in visual_right_ik_indices])
-            urdf_right_config = np.array([new_joint_config_full[i] for i in visual_left_ik_indices])
+            # IK solution: [urdf_left(0-6), urdf_right(7-13)]
+            # URDF left → visual right, URDF right → visual left
+            visual_right_config = np.array([new_joint_config_full[i] for i in visual_right_ik_indices])
+            visual_left_config = np.array([new_joint_config_full[i] for i in visual_left_ik_indices])
 
-            # Get starting position from ROS feedback
+            # Get starting positions - use current trajectory position or ROS feedback
             if ROS_AVAILABLE and ros_node is not None:
+                urdf_left_start = ros_node.get_left_current_position()
                 urdf_right_start = ros_node.get_right_current_position()
-                if urdf_right_start is None:
-                    urdf_right_start = right_start_config
-            else:
-                urdf_right_start = right_start_config
 
-            # Generate trajectories: urdf_right → visual_left, urdf_left → visual_right
-            current_visual_left_trajectory = generate_trajectory(urdf_right_start, urdf_right_config, timesteps)
-            current_visual_right_trajectory = generate_trajectory(left_start_config, urdf_left_config, timesteps)
+                if urdf_left_start is None:
+                    urdf_left_start = current_left_position
+                else:
+                    current_left_position = urdf_left_start.copy()
+
+                if urdf_right_start is None:
+                    urdf_right_start = current_right_position
+                else:
+                    current_right_position = urdf_right_start.copy()
+
+                # Map ROS feedback to visual positions (ROS left → visual left, ROS right → visual right)
+                visual_left_start = urdf_left_start
+                visual_right_start = urdf_right_start
+            else:
+                # Use last known positions from trajectory
+                visual_left_start = current_visual_left_trajectory[left_slider.value].copy()
+                visual_right_start = current_visual_right_trajectory[right_slider.value].copy()
+                current_left_position = visual_left_start.copy()
+                current_right_position = visual_right_start.copy()
+
+            print(f"  Starting from current positions (incremental movement)")
+            print(f"  Visual LEFT start:  {visual_left_start}")
+            print(f"  Visual RIGHT start: {visual_right_start}")
+
+            # Generate trajectories: visual left → visual left, visual right → visual right
+            current_visual_left_trajectory = generate_trajectory(visual_left_start, visual_left_config, timesteps)
+            current_visual_right_trajectory = generate_trajectory(visual_right_start, visual_right_config, timesteps)
 
             # Update visualization for left target
             left_target_sphere.position = tuple(new_left_target)
@@ -648,7 +714,7 @@ def main():
 
     @regenerate_right_button.on_click
     def _(_):
-        nonlocal current_visual_left_trajectory, current_visual_right_trajectory
+        nonlocal current_visual_left_trajectory, current_visual_right_trajectory, current_left_position, current_right_position
 
         # Get new right target
         new_right_target = np.array([
@@ -664,36 +730,62 @@ def main():
             left_target_z_slider.value,
         ])
 
-        status_text.value = "Solving BIMANUAL IK (same orientation)..."
-        print(f"\nRegenerating trajectories with same orientation:")
+        status_text.value = "Solving BIMANUAL IK (symmetric)..."
+        print(f"\nRegenerating trajectories with symmetric configuration:")
         print(f"  LEFT:  {new_left_target}")
         print(f"  RIGHT: {new_right_target}")
 
         try:
-            # Solve bimanual IK simultaneously - both arms use SAME orientation
-            new_joint_config_full = pks.solve_ik_with_multiple_targets(
+            # Solve bimanual IK with symmetric bias
+            new_joint_config_full = solve_ik_bimanual_symmetric(
                 robot=robot,
                 target_link_names=[left_end_effector, right_end_effector],
-                target_positions=np.array([new_left_target, new_right_target]),
                 target_wxyzs=np.array([shared_orientation, shared_orientation]),
+                target_positions=np.array([new_left_target, new_right_target]),
+                rest_pose=symmetric_rest_pose,
+                rest_weight=5.0,
             )
 
+            print(f"  Using symmetric bimanual IK solver")
+
             # Extract arm joints (7-DOF each) from IK solution
-            # IK solution: [urdf_left(0-6), urdf_right(7-13)] → [visual_right, visual_left]
-            urdf_left_config = np.array([new_joint_config_full[i] for i in visual_right_ik_indices])
-            urdf_right_config = np.array([new_joint_config_full[i] for i in visual_left_ik_indices])
+            # IK solution: [urdf_left(0-6), urdf_right(7-13)]
+            # URDF left → visual right, URDF right → visual left
+            visual_right_config = np.array([new_joint_config_full[i] for i in visual_right_ik_indices])
+            visual_left_config = np.array([new_joint_config_full[i] for i in visual_left_ik_indices])
 
-            # Get starting position from ROS feedback
+            # Get starting positions - use current trajectory position or ROS feedback
             if ROS_AVAILABLE and ros_node is not None:
+                urdf_left_start = ros_node.get_left_current_position()
                 urdf_right_start = ros_node.get_right_current_position()
-                if urdf_right_start is None:
-                    urdf_right_start = right_start_config
-            else:
-                urdf_right_start = right_start_config
 
-            # Generate trajectories: urdf_right → visual_left, urdf_left → visual_right
-            current_visual_left_trajectory = generate_trajectory(urdf_right_start, urdf_right_config, timesteps)
-            current_visual_right_trajectory = generate_trajectory(left_start_config, urdf_left_config, timesteps)
+                if urdf_left_start is None:
+                    urdf_left_start = current_left_position
+                else:
+                    current_left_position = urdf_left_start.copy()
+
+                if urdf_right_start is None:
+                    urdf_right_start = current_right_position
+                else:
+                    current_right_position = urdf_right_start.copy()
+
+                # Map ROS feedback to visual positions (ROS left → visual left, ROS right → visual right)
+                visual_left_start = urdf_left_start
+                visual_right_start = urdf_right_start
+            else:
+                # Use last known positions from trajectory
+                visual_left_start = current_visual_left_trajectory[left_slider.value].copy()
+                visual_right_start = current_visual_right_trajectory[right_slider.value].copy()
+                current_left_position = visual_left_start.copy()
+                current_right_position = visual_right_start.copy()
+
+            print(f"  Starting from current positions (incremental movement)")
+            print(f"  Visual LEFT start:  {visual_left_start}")
+            print(f"  Visual RIGHT start: {visual_right_start}")
+
+            # Generate trajectories: visual left → visual left, visual right → visual right
+            current_visual_left_trajectory = generate_trajectory(visual_left_start, visual_left_config, timesteps)
+            current_visual_right_trajectory = generate_trajectory(visual_right_start, visual_right_config, timesteps)
 
             # Update visualization for right target
             right_target_sphere.position = tuple(new_right_target)
@@ -848,23 +940,32 @@ def main():
                 for i, idx in enumerate(visual_left_joint_indices):
                     if i < len(urdf_left_real_pos):
                         full_config_real[idx] = urdf_left_real_pos[i]
-                left_real_robot_status.value = f" Receiving LEFT ARM feedback"
+                left_real_robot_status.value = f"✓ Receiving LEFT ARM feedback"
+                # Update tracked position
+                current_left_position = urdf_left_real_pos.copy()
             else:
-                left_real_robot_status.value = " Waiting for LEFT ARM feedback..."
+                left_real_robot_status.value = "⏳ Waiting for LEFT ARM feedback..."
 
             # Right arm feedback → visual right arm position
             if urdf_right_real_pos is not None:
                 for i, idx in enumerate(visual_right_joint_indices):
                     if i < len(urdf_right_real_pos):
                         full_config_real[idx] = urdf_right_real_pos[i]
-                right_real_robot_status.value = f" Receiving RIGHT ARM feedback"
+                right_real_robot_status.value = f"✓ Receiving RIGHT ARM feedback"
+                # Update tracked position
+                current_right_position = urdf_right_real_pos.copy()
             else:
-                right_real_robot_status.value = " Waiting for RIGHT ARM feedback..."
+                right_real_robot_status.value = "⏳ Waiting for RIGHT ARM feedback..."
 
             urdf_real.update_cfg(full_config_real)
         else:
             # No ROS - keep real robot at zero position (not moving)
             urdf_real.update_cfg(np.zeros(full_config_size))
+            # Update tracked positions from simulation trajectory
+            if left_slider.value < len(current_visual_left_trajectory):
+                current_left_position = current_visual_left_trajectory[left_slider.value].copy()
+            if right_slider.value < len(current_visual_right_trajectory):
+                current_right_position = current_visual_right_trajectory[right_slider.value].copy()
 
 
 if __name__ == "__main__":
